@@ -1,7 +1,7 @@
-import numpy as np, scipy as sp
+import numpy as np, scipy as sp, itertools
 from matplotlib import pyplot as plt
 
-class TightBindingDispersion:
+class TightBinding:
     def __init__(self, t_r, path, n_k):
         """
         r and k normalized to 1
@@ -18,22 +18,20 @@ class TightBindingDispersion:
         self.path = [np.array(p) for p in path]
         self.n_k = n_k
         self.n_kpoints_segment = None
+        self.k_mesh_path = None
+        self.epsilon_k_path = None
         self.k_mesh = None
-        self.epsilon_k = None
-        self.t_k = None
+        self.dos = None
 
     def calculate_dispersion(self):
-        self.k_mesh, self.n_kpoints_segment = self.calculate_k_mesh()
-        self.t_k = []
-        self.epsilon_k = []
-        for k in self.k_mesh:
+        self.k_mesh_path, self.n_kpoints_segment = self.calculate_k_mesh_path()
+        self.epsilon_k_path = []
+        for k in self.k_mesh_path:
             t_k = np.sum([np.exp(complex(0,2*np.pi*np.array(r).dot(k)))*np.array(t) for r, t in self.t_r.items()], axis=0, dtype=complex)
-            self.t_k.append(t_k)
-            self.epsilon_k.append(np.linalg.eigvalsh(t_k))
-        self.epsilon_k = np.array(self.epsilon_k)
-        self.t_k = np.array(self.t_k)
+            self.epsilon_k_path.append(np.linalg.eigvalsh(t_k))
+        self.epsilon_k_path = np.array(self.epsilon_k_path)
 
-    def calculate_k_mesh(self):
+    def calculate_k_mesh_path(self):
         length_path = np.sum([np.linalg.norm(self.path[i+1]-self.path[i]) for i in range(len(self.path)-1)], axis=0)
         k_mesh = []
         n_points_per_segment = []
@@ -55,10 +53,57 @@ class TightBindingDispersion:
     def plot_dispersion(self, ax, path_labels, **kwargs):
         assert len(path_labels) == len(self.path), "number of path labels wrong"
         for bandnr in range(self.n_bands):
-            ax.plot(range(len(self.k_mesh)), self.epsilon_k[:,bandnr], **kwargs)
+            ax.plot(range(len(self.k_mesh_path)), self.epsilon_k_path[:,bandnr], **kwargs)
         ax.set_xticks(self.get_data_positions_of_path_points())
         ax.set_xticklabels(path_labels)
         ax.set_ylabel("$\epsilon (k)$")
         ax.set_xlabel("$k$")
-        ax.set_xlim(0,len(self.k_mesh+1))
+        ax.set_xlim(0,len(self.k_mesh_path+1))
 
+    def plot_dos(self, ax, rotated = True, **kwargs):
+        if rotated:
+            ax.plot(self.dos[1], self.dos[0], **kwargs)
+            ax.set_xlabel("$N_\sigma(\omega)$")
+        else:
+            ax.plot(self.dos[0], self.dos[1], **kwargs)
+            ax.set_ylabel("$N_\sigma(\omega)$")
+            ax.set_xlabel("$\omega$")
+
+    def calculate_dos(self, n_omega, n_k_per_dim, eps = 2**(-4)):
+        self.dos = np.zeros([2, n_omega])
+        self.k_mesh = self.calculate_k_mesh(n_k_per_dim)
+        self.epsilon_k = np.empty([n_k_per_dim**self.dimension, self.n_bands])
+        for i, k in enumerate(self.k_mesh):
+            t_k = np.sum([np.exp(complex(0,2*np.pi*np.array(r).dot(k)))*np.array(t) for r, t in self.t_r.items()], axis=0, dtype=complex)
+            self.epsilon_k[i,:] = np.linalg.eigvalsh(t_k)
+        self.epsilon_k_min = self.epsilon_k.min()
+        self.epsilon_k_max = self.epsilon_k.max()
+        self.bandwidth = round(self.epsilon_k_max - self.epsilon_k_min)
+        delta_omega = abs(self.epsilon_k_max - self.epsilon_k_min) / float(n_omega -1)
+        eps_norm = eps/np.pi/len(self.k_mesh)
+        for w in range(n_omega):
+            omega = self.epsilon_k_min + w * delta_omega
+            self.dos[0, w] = omega
+            for i, n in itertools.product(range(len(self.k_mesh)),range(self.n_bands)):
+                self.dos[1, w] += eps_norm / ((omega - self.epsilon_k[i, n])**2 + eps**2)
+
+    def calculate_k_mesh(self, n_points):
+        line = [-.5+i/float(n_points) for i in range(n_points)]
+        k_pts = np.empty([n_points**self.dimension, self.dimension])
+        i = 0
+        for k in itertools.product(*[line]*self.dimension):
+            k_pts[i,:] = k
+            i += 1
+        return k_pts
+
+    def get_N_T0(self, eps_F = 0):
+        """return lower and upper estimate (riemannian integral appr.)"""
+        #not written for mu above largest epsilon_k
+        eps_fermi_arg = np.argmin(abs(self.dos[0,:]-eps_F))
+        integral = np.zeros([eps_fermi_arg+1])
+        for i, d in enumerate(self.dos[1,:eps_fermi_arg+1]):
+            integral[i] = d * abs(self.dos[0, i+1] - self.dos[0, i])
+        nl = np.sum(integral[:-1], axis = 0)
+        nu = nl + integral[-1]
+        return nl, nu
+    

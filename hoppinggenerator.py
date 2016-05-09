@@ -76,8 +76,13 @@ class HoppingGenerator:
     def reciprocal_latticevectors(self):
         rlvs = []
         lvs = self.translationvectors
-        if len(lvs) == 3:
+        if len(lvs) == 3: # TODO generalize for 2D and 1D
             volume = lvs[0].dot(np.cross(lvs[1],lvs[2]))
             for i in range(3):
                 rlvs.append(np.cross(lvs[(i+1)%3],lvs[(i+2)%3])/volume)
+        elif len(lvs) == 2:
+            phi = np.pi/2
+            r = np.array([[np.cos(phi),-np.sin(phi)],[np.sin(phi),np.cos(phi)]])
+            for i in range(2):
+                rlvs.append(r.dot(lvs[(i+1)%2])/(lvs[i].dot(r.dot(lvs[(i+1)%2]))))
         return np.array(rlvs)
