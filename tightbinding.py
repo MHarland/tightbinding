@@ -2,11 +2,12 @@ import numpy as np, scipy as sp, itertools
 from matplotlib import pyplot as plt
 
 class TightBinding:
-    def __init__(self, t_r, path, n_k):
+    def __init__(self, t_r, path = None, n_k = None):
         """
         r and k normalized to 1
         """
-        self.dimension = len(path[0])
+        #self.dimension = len(path[0])
+        self.dimension = len([r for r in t_r.keys()][0])
         if self.dimension == 1:
             local = (0)
         elif self.dimension == 2:
@@ -15,7 +16,8 @@ class TightBinding:
             local = (0,0,0)
         self.n_bands = len(t_r[local])
         self.t_r = t_r
-        self.path = [np.array(p) for p in path]
+        if path is not None:
+            self.path = [np.array(p) for p in path]
         self.n_k = n_k
         self.n_kpoints_segment = None
         self.k_mesh_path = None
@@ -23,6 +25,9 @@ class TightBinding:
         self.k_mesh = None
         self.dos = None
 
+    def epsilon_at(self, k):
+        return np.sum([np.exp(complex(0,2*np.pi*np.array(r).dot(k)))*np.array(t) for r, t in self.t_r.items()], axis=0, dtype=complex).real
+        
     def calculate_dispersion(self):
         self.k_mesh_path, self.n_kpoints_segment = self.calculate_k_mesh_path()
         self.epsilon_k_path = []
