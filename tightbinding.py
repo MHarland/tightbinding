@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 class TightBinding:
     def __init__(self, t_r, path = None, n_k = None):
         """
+        t_r is a dict that maps translation-tuples to rank 2 arrays over the hopping's orbitals
         r and k normalized to 1
         """
         #self.dimension = len(path[0])
@@ -32,7 +33,7 @@ class TightBinding:
         self.k_mesh_path, self.n_kpoints_segment = self.calculate_k_mesh_path()
         self.epsilon_k_path = []
         for k in self.k_mesh_path:
-            t_k = np.sum([np.exp(complex(0,2*np.pi*np.array(r).dot(k)))*np.array(t) for r, t in self.t_r.items()], axis=0, dtype=complex)
+            t_k = self.epsilon_at(k)
             self.epsilon_k_path.append(np.linalg.eigvalsh(t_k))
         self.epsilon_k_path = np.array(self.epsilon_k_path)
 
@@ -85,7 +86,7 @@ class TightBinding:
         self.k_mesh = self.calculate_k_mesh(n_k_per_dim)
         self.epsilon_k = np.empty([n_k_per_dim**self.dimension, self.n_bands])
         for i, k in enumerate(self.k_mesh):
-            t_k = np.sum([np.exp(complex(0,2*np.pi*np.array(r).dot(k)))*np.array(t) for r, t in self.t_r.items()], axis=0, dtype=complex)
+            t_k = self.epsilon_at(k)
             self.epsilon_k[i,:] = np.linalg.eigvalsh(t_k)
         self.epsilon_k_min = self.epsilon_k.min()
         self.epsilon_k_max = self.epsilon_k.max()
@@ -118,3 +119,24 @@ class TightBinding:
         nu = nl + integral[-1]
         return nl, nu
     
+class TightBindingK(TightBinding):
+    """
+    t_k must be a callable function that returns a rank 2 array
+    dimension is that of the lattice
+    Don't use factor of 2*pi in t_k!
+    """
+    def __init__(self, t_k, dimension, path = None, n_k = None):
+        self.t_k = t_k
+        self.dimension = dimension
+        self.n_bands = t_k(np.array([0]*dimension)).shape[0]
+        if path is not None:
+            self.path = [np.array(p) for p in path]
+        self.n_k = n_k
+        self.n_kpoints_segment = None
+        self.k_mesh_path = None
+        self.epsilon_k_path = None
+        self.k_mesh = None
+        self.dos = None
+
+    def epsilon_at(self, k):
+        return self.t_k(2*np.pi*k)
