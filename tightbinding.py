@@ -77,6 +77,10 @@ class TightBinding:
             ax.set_xlabel("$\omega$")
 
     def calculate_dos(self, n_omega, n_k_per_dim, eps = 2**(-4)):
+        """
+        The continuous dispersion is chunked into discrete energy levels that are
+        approximated with lorentzians of widths defined by parameter eps
+        """
         self.dos = np.zeros([2, n_omega])
         self.k_mesh = self.calculate_k_mesh(n_k_per_dim)
         self.epsilon_k = np.empty([n_k_per_dim**self.dimension, self.n_bands])
