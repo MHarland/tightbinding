@@ -59,6 +59,8 @@ class TightBinding:
         assert len(path_labels) == len(self.path), "number of path labels wrong"
         for bandnr in range(self.n_bands):
             ax.plot(range(len(self.k_mesh_path)), self.epsilon_k_path[:,bandnr], **kwargs)
+            if 'label' in kwargs.keys():
+                del kwargs['label']
         ax.set_xticks(self.get_data_positions_of_path_points())
         ax.set_xticklabels(path_labels)
         ax.set_ylabel("$\epsilon (k)$")
